@@ -43,6 +43,9 @@
 #endif
 
 static int rvnr;
+static int fcstacksize = 0;
+int p1maxstacksize = 0; /* XXX - remove, move calculation to pass2 */
+
 
 /*
  * Print out assembler segment name.
@@ -324,6 +327,7 @@ bfcode(struct symtab **sp, int cnt)
 {
 	int saveallargs = 0;
 	int i, argofs = 0;
+	p1maxstacksize = 0;
 
 	/*
 	 * Detect if this function has ellipses and save all
@@ -344,7 +348,7 @@ bfcode(struct symtab **sp, int cnt)
 		if (sp[i] == NULL)
 			continue;
 
-		if ((argofs >= NARGREGS) && !xtemps)
+		if ((argofs >= NARGREGS) /*&& !xtemps*/)
 			break;
 
 		if (argofs > NARGREGS) {
@@ -352,27 +356,24 @@ bfcode(struct symtab **sp, int cnt)
 		} else if (sp[i]->stype == STRTY || sp[i]->stype == UNIONTY) {
 			param_struct(sp[i], &argofs);
 		} else if (DEUNSIGN(sp[i]->stype) == LONGLONG  || DEUNSIGN(sp[i]->stype) == LONG) {
-			param_64bit(sp[i], &argofs, xtemps && !saveallargs);
+			param_64bit(sp[i], &argofs, 1);
 		} else if (sp[i]->stype == DOUBLE || sp[i]->stype == LDOUBLE) {
 			if (features(FEATURE_HARDFLOAT))
-				param_double(sp[i], &argofs,
-				    xtemps && !saveallargs);
+				param_double(sp[i], &argofs, 1);
 			else
-				param_64bit(sp[i], &argofs,
-				    xtemps && !saveallargs);
+				param_64bit(sp[i], &argofs, 1);
 		} else if (sp[i]->stype == FLOAT) {
 			if (features(FEATURE_HARDFLOAT))
-				param_float(sp[i], &argofs,
-				    xtemps && !saveallargs);
+				param_float(sp[i], &argofs, 1);
 			else
-				param_32bit(sp[i], &argofs,
-				    xtemps && !saveallargs);
+				param_32bit(sp[i], &argofs, 1);
 		} else {
-			param_32bit(sp[i], &argofs, xtemps && !saveallargs);
+			param_32bit(sp[i], &argofs, 1);
 		}
 	}
 
 	/* if saveallargs, save the rest of the args onto the stack */
+
 	while (saveallargs && argofs < NARGREGS) {
       		NODE *p, *q;
 		int off = ARGINIT/SZINT + argofs;
@@ -546,10 +547,12 @@ pusharg(NODE *p, int *regp)
 
 	if (szty(p->n_type) == 1) {
 		++(*regp);
-		q = block(MINUSEQ, q, bcon(4), INT, 0, 0);
+		q = block(PLUS, q, bcon(fcstacksize), INT, 0, 0);
+		fcstacksize += 4;
 	} else {
-		(*regp) += 2;
-		q = block(MINUSEQ, q, bcon(8), INT, 0, 0);
+		(*regp) += 2; /* XXX - investigate */
+		q = block(PLUS, q, bcon(fcstacksize), INT, 0, 0);
+		fcstacksize += 8;
 	}
 
 	q = block(UMUL, q, NIL, p->n_type, p->n_df, p->n_ap);
@@ -795,7 +798,7 @@ moveargs(NODE *p, int *regp)
 
 	reg = *regp;
 
-	if (reg > R3 && r->n_op != STARG) {
+	if (reg > R7 && r->n_op != STARG) {
 		*rp = pusharg(r, regp);
 	} else if (r->n_op == STARG) {
 		*rp = movearg_struct(r, regp);
@@ -874,6 +877,7 @@ NODE *
 funcode(NODE *p)
 {
 	int reg = R0;
+	fcstacksize = 0;
 
 	if (p->n_type == STRTY+FTN || p->n_type == UNIONTY+FTN) {
 		p = retstruct(p);
@@ -884,6 +888,9 @@ funcode(NODE *p)
 
 	if (p->n_right == NULL)
 		p->n_op += (UCALL - CALL);
+
+	if (fcstacksize > p1maxstacksize)
+		p1maxstacksize = fcstacksize;
 
 	return p;
 }

@@ -23,6 +23,8 @@
 
 #include "pass2.h"
 
+#define SZFPSP		16
+
 extern void defalign(int);
 
 int isConverstion=0;
@@ -50,6 +52,12 @@ char *rnames[] = {
 	"x22","x23","x24","x25","x26","x27","x28",
 	"x29","x30","sp",
 };
+
+static int p2calls;
+static int p2temps;             /* TEMPs which aren't autos yet */
+static int p2framesize;
+
+extern int p1maxstacksize;
 
 /*
  * Handling of integer constants.  We have 8 bits + an even
@@ -160,9 +168,9 @@ prologue(struct interpass_prolog *ipp)
 
 	ftype = ipp->ipp_type;
         printf("%s:\n", exname(ipp->ipp_name));
-        addto = offcalc(ipp);
-        if (addto < 64){
-		addto = 64;       
+        addto = p2framesize;
+        if (addto < 16){
+		addto = 16;
         }
         if((addto % 16)){
                 addto = addto + (16 - (addto % 16));
@@ -175,7 +183,7 @@ prologue(struct interpass_prolog *ipp)
                         printf("\tsub %s,%s,#%d\n",
                             rnames[SP], rnames[SP], vals[i]);
         }
-        printf("\tstp %s,%s,[%s]\n", rnames[FP],rnames[LR],rnames[SP]);
+        printf("\tstp %s,%s,[%s, #%d]\n", rnames[FP],rnames[LR],rnames[SP],addto-SZFPSP);
         printf("\tmov %s,%s\n", rnames[FP], rnames[SP]);
         addStack=addto;
 }
@@ -190,16 +198,16 @@ eoftn(struct interpass_prolog *ipp)
 	if (ftype == STRTY || ftype == UNIONTY) {
 		assert(0);
 	} else {
-                if (addStack == 0){
-                        printf("\tldp %s,%s,[%s],#%d \n", rnames[FP], rnames[LR],
-                                rnames[SP], 64);
-                        printf("\tadd %s,%s,#%d\n", rnames[SP], rnames[SP], 64);
-                }
-                else{
-                        printf("\tldp %s,%s,[%s] \n", rnames[FP], rnames[LR],
-                                rnames[SP]);
+//                if (addStack == 0){
+//                        printf("\tldp %s,%s,[%s],#%d \n", rnames[FP], rnames[LR],
+//                                rnames[SP], 64);
+//                        printf("\tadd %s,%s,#%d\n", rnames[SP], rnames[SP], 64);
+//                }
+//                else{
+                        printf("\tldp %s,%s,[%s, #%d] \n", rnames[FP], rnames[LR],
+                                rnames[SP],addStack-SZFPSP);
                         printf("\tadd %s,%s,%d\n", rnames[SP], rnames[SP], addStack);
-                }
+//                }
 	}
 	printf("\tret\n");
 #ifndef MACHOABI
@@ -599,10 +607,11 @@ zzzcode(NODE *p, int c)
 
 		case 'C':  /* remove from stack after subroutine call */
 			pr = p->n_qual;
-			if (p->n_op == UCALL)
-				return; /* XXX remove ZC from UCALL */
-			if (pr > 0)
-				printf("\tadd %s,%s,#%d\n", rnames[SP], rnames[SP], pr);
+//
+//			if (p->n_op == UCALL)
+//				return; /* XXX remove ZC from UCALL */
+//			if (pr > 0)
+//				printf("\tadd %s,%s,#%d\n", rnames[SP], rnames[SP], pr);
 			break;
 	        case 'D':
 			isConverstion= 1;
@@ -967,6 +976,24 @@ myreader(struct interpass *ipole)
 	SLIST_INIT(&aslist);
 	notfirst = nodcnt = 0;
 
+	p2framesize = SZFPSP;                   /* for R31 and R30 */
+	p2framesize += p2maxautooff;            /* autos */
+	p2framesize += p2temps;                 /* TEMPs that aren't autos */
+	p2framesize += p1maxstacksize;          /* arguments to functions */
+	p2framesize += (ALSTACK/SZCHAR - 1);    /* round to 16-byte boundary */
+	p2framesize &= ~(ALSTACK/SZCHAR - 1);
+
+#ifdef PCC_DEBUG
+	if (x2debug) {
+		printf("!!! MYREADER\n");
+		printf("!!! p2maxautooff = %d\n", p2maxautooff);
+		printf("!!! p2autooff = %d\n", p2autooff);
+		printf("!!! p2temps = %d\n", p2temps);
+		printf("!!! p2calls = %d\n", p2calls);
+		printf("!!! p1maxstacksize = %d\n", p1maxstacksize);
+	}
+#endif
+
 	DLIST_FOREACH(ip, ipole, qelem) {
 		switch (ip->type) {
 			case IP_NODE:
@@ -983,6 +1010,7 @@ myreader(struct interpass *ipole)
 				break;
 		}
 	}
+
 	if (x2debug)
 		printip(ipole);
 }

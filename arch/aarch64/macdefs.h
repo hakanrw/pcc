@@ -138,7 +138,7 @@ typedef long long OFFSZ;
 #define LR	R30
 
 #define NUMCLASS 3
-#define	MAXREGS  34	
+#define	MAXREGS  32
 
 #define RSTATUS \
 	SAREG|TEMPREG, SAREG|TEMPREG, SAREG|TEMPREG, SAREG|TEMPREG,	\
@@ -158,8 +158,10 @@ typedef long long OFFSZ;
         { -1 }, { -1 }, { -1 }, { -1 }, { -1 }, { -1 }, { -1 }, \
         { -1 }, { -1 }, { -1 }, { -1 }, { -1 }, { -1 },
 
+#define STACK_DOWN              /* stack grows negatively for temporaries */
+
 #define ARGINIT		(16*8)	/* # bits above fp where arguments start */
-#define AUTOINIT	(32*8)	/* # bits above fp where automatics start */
+#define AUTOINIT	0	/* # bits above fp where automatics start */
 
 #undef	FIELDOPS		/* no bit-field instructions */
 #define TARGET_ENDIAN TARGET_LE
@@ -208,7 +210,7 @@ NODE *arm_builtin_va_copy(const struct bitable *bt, NODE *a);
 #undef NODE
 
 #define COM     "\t// "
-#define NARGREGS	4
+#define NARGREGS	8
 
 /* floating point definitions */
 #define USE_IEEEFP_32
