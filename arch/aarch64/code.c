@@ -348,11 +348,12 @@ bfcode(struct symtab **sp, int cnt)
 		if (sp[i] == NULL)
 			continue;
 
-		if ((argofs >= NARGREGS) /*&& !xtemps*/)
-			break;
+//		if ((argofs >= NARGREGS) /*&& !xtemps*/)
+//			break;
 
-		if (argofs > NARGREGS) {
-			putintemp(sp[i]);
+		if (argofs >= NARGREGS) {
+//			putintemp(sp[i]);
+			sp[i]->soffset = 16 * 8;
 		} else if (sp[i]->stype == STRTY || sp[i]->stype == UNIONTY) {
 			param_struct(sp[i], &argofs);
 		} else if (DEUNSIGN(sp[i]->stype) == LONGLONG  || DEUNSIGN(sp[i]->stype) == LONG) {
@@ -371,6 +372,7 @@ bfcode(struct symtab **sp, int cnt)
 			param_32bit(sp[i], &argofs, 1);
 		}
 	}
+
 
 	/* if saveallargs, save the rest of the args onto the stack */
 

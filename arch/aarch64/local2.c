@@ -29,6 +29,7 @@ extern void defalign(int);
 
 int isConverstion=0;
 int addStack=0;
+static int isExtend=0;
 #define	exname(x) x
 
 /*
@@ -53,7 +54,6 @@ char *rnames[] = {
 	"x29","x30","sp",
 };
 
-static int p2calls;
 static int p2temps;             /* TEMPs which aren't autos yet */
 static int p2framesize;
 
@@ -168,7 +168,7 @@ prologue(struct interpass_prolog *ipp)
 
 	ftype = ipp->ipp_type;
         printf("%s:\n", exname(ipp->ipp_name));
-        addto = p2framesize;
+        addto = p2framesize + p2maxautooff;
         if (addto < 16){
 		addto = 16;
         }
@@ -184,7 +184,7 @@ prologue(struct interpass_prolog *ipp)
                             rnames[SP], rnames[SP], vals[i]);
         }
         printf("\tstp %s,%s,[%s, #%d]\n", rnames[FP],rnames[LR],rnames[SP],addto-SZFPSP);
-        printf("\tmov %s,%s\n", rnames[FP], rnames[SP]);
+        printf("\tadd %s, %s, #%d\n", rnames[FP], rnames[SP], addto - SZFPSP);
         addStack=addto;
 }
 
@@ -595,12 +595,36 @@ argsiz(NODE *p)
 	return 0;
 }
 
+static void
+addrload(NODE *p)
+{
+	NODE *r = getlr(p, 'R');
+	NODE *l = getlr(p, 'L');
+
+	if (l->n_op == NAME) {
+		/* load */
+		if (1 /* normal */) {
+			expand (p, 0, "\tadrp ZXA1, AL@page\n");
+			expand (p, 0, "\tadd ZXA1, ZXA1, AL@pageoff\n");
+		} else { /* got */
+			expand (p, 0, "\tadrp ZXA1, AL@gotpage\n");
+			expand (p, 0, "\taadd ZXA1, ZXA1, AL@gotpageoff\n");
+		}
+	} else {
+		comperr("addrload");
+	}
+}
+
 void
 zzzcode(NODE *p, int c)
 {
 	int pr;
 
 	switch (c) {
+		case 'A': /* load address of NAME */
+			addrload(p);
+			break;
+
 		case 'B': /* bit-field sign extension */
 			bfext(p);
 			break;
@@ -641,6 +665,10 @@ zzzcode(NODE *p, int c)
 
 		case 'Q': /* emit struct assign */
 			stasg(p);
+			break;
+
+		case 'X':
+			isExtend = 1;
 			break;
 
 		default:
@@ -796,6 +824,10 @@ adrput(FILE *io, NODE *p)
 						if (isConverstion) {
 							fprintf(io, "%s", wnames[0]);
 							isConverstion = 0;
+						}
+						else if (isExtend) {
+							fprintf(io, "%s", rnames[p->n_rval]);
+							isExtend = 0;
 						}
 						else
 							fprintf(io, "%s", wnames[p->n_rval]);
@@ -977,8 +1009,6 @@ myreader(struct interpass *ipole)
 	notfirst = nodcnt = 0;
 
 	p2framesize = SZFPSP;                   /* for R31 and R30 */
-	p2framesize += p2maxautooff;            /* autos */
-	p2framesize += p2temps;                 /* TEMPs that aren't autos */
 	p2framesize += p1maxstacksize;          /* arguments to functions */
 	p2framesize += (ALSTACK/SZCHAR - 1);    /* round to 16-byte boundary */
 	p2framesize &= ~(ALSTACK/SZCHAR - 1);
@@ -989,7 +1019,6 @@ myreader(struct interpass *ipole)
 		printf("!!! p2maxautooff = %d\n", p2maxautooff);
 		printf("!!! p2autooff = %d\n", p2autooff);
 		printf("!!! p2temps = %d\n", p2temps);
-		printf("!!! p2calls = %d\n", p2calls);
 		printf("!!! p1maxstacksize = %d\n", p1maxstacksize);
 	}
 #endif

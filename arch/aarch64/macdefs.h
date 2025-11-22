@@ -28,7 +28,7 @@
  * Storage space requirements
  */
 #define SZCHAR          8
-#define SZBOOL          32
+#define SZBOOL          32 /* XXX - investigate */
 #define SZINT           32
 #define SZFLOAT         32
 #define SZDOUBLE        64
@@ -42,17 +42,17 @@
  * Alignment constraints
  */
 #define ALCHAR          8
-#define ALBOOL          32
+#define ALBOOL          8
 #define ALINT           32
 #define ALFLOAT         32
-#define ALDOUBLE        32
+#define ALDOUBLE        64
 #define ALLDOUBLE       32
 #define ALLONG          32
-#define ALLONGLONG      32
+#define ALLONGLONG      64
 #define ALSHORT         16
 #define ALPOINT         32
 #define ALSTRUCT        32
-#define ALSTACK         32
+#define ALSTACK         128
 
 /*
  * Min/max values.
@@ -63,7 +63,7 @@
 #define	MIN_SHORT	-32768
 #define	MAX_SHORT	32767
 #define	MAX_USHORT	65535
-#define	MIN_INT		-1
+#define	MIN_INT		(-0x7fffffff-1)
 #define	MAX_INT		0x7fffffff
 #define	MAX_UNSIGNED	0xffffffff
 #define	MIN_LONG	0x8000000000000000L
@@ -73,7 +73,7 @@
 #define	MAX_LONGLONG	0x7fffffffffffffffLL
 #define	MAX_ULONGLONG	0xffffffffffffffffULL
 
-#define	BOOL_TYPE	INT	/* what used to store _Bool */
+#define	BOOL_TYPE	UCHAR	/* what used to store _Bool */
 
 /*
  * Use large-enough types.
@@ -96,8 +96,7 @@ typedef long long OFFSZ;
 #define STOFARG(p)
 #define STOSTARG(p)
 
-#define	szty(t)	(((t) == DOUBLE || (t) == LDOUBLE || \
-	(t) == LONG || (t) == ULONG || (t) == LONGLONG || (t) == ULONGLONG) ? 2 : 1)
+#define szty(t) (t < LONG || t == FLOAT ? 1 : t == LDOUBLE ? 4 : 2)
 
 #define R0	0
 #define R1	1
@@ -141,14 +140,38 @@ typedef long long OFFSZ;
 #define	MAXREGS  32
 
 #define RSTATUS \
-	SAREG|TEMPREG, SAREG|TEMPREG, SAREG|TEMPREG, SAREG|TEMPREG,	\
-	SAREG|PERMREG, SAREG|PERMREG, SAREG|PERMREG, SAREG|PERMREG,	\
-	SAREG|PERMREG, SAREG|PERMREG, SAREG|PERMREG,			\
-	0, 0, 0, 0, 0,							\
-        SBREG|TEMPREG, SBREG|TEMPREG, SBREG|TEMPREG, SBREG,		\
-        SBREG, SBREG, SBREG, SBREG, SBREG, SBREG,			\
-	SCREG, SCREG, SCREG, SCREG,					\
-	SCREG, SCREG, SCREG, SCREG,					\
+/* x0  */ SAREG|TEMPREG, \
+/* x1  */ SAREG|TEMPREG, \
+/* x2  */ SAREG|TEMPREG, \
+/* x3  */ SAREG|TEMPREG, \
+/* x4  */ SAREG|TEMPREG, \
+/* x5  */ SAREG|TEMPREG, \
+/* x6  */ SAREG|TEMPREG, \
+/* x7  */ SAREG|TEMPREG, \
+/* x8  */ SAREG|TEMPREG, \
+/* x9  */ SAREG|TEMPREG, \
+/* x10 */ SAREG|TEMPREG, \
+/* x11 */ SAREG|TEMPREG, \
+/* x12 */ SAREG|TEMPREG, \
+/* x13 */ SAREG|TEMPREG, \
+/* x14 */ SAREG|TEMPREG, \
+/* x15 */ SAREG|TEMPREG, \
+/* x16 */ 0,            /* IP0 scratch (not allocatable) */ \
+/* x17 */ 0,            /* IP1 scratch */ \
+/* x18 */ 0,            /* platform register */ \
+/* x19 */ SAREG|PERMREG, \
+/* x20 */ SAREG|PERMREG, \
+/* x21 */ SAREG|PERMREG, \
+/* x22 */ SAREG|PERMREG, \
+/* x23 */ SAREG|PERMREG, \
+/* x24 */ SAREG|PERMREG, \
+/* x25 */ SAREG|PERMREG, \
+/* x26 */ SAREG|PERMREG, \
+/* x27 */ SAREG|PERMREG, \
+/* x28 */ SAREG|PERMREG, \
+/* x29 */ 0,            /* FP (frame pointer) */ \
+/* x30 */ 0,            /* LR */ \
+/* x31 */ 0             /* SP/WZR */ 
 
 /* no overlapping registers at all */
 #define ROVERLAP \
@@ -173,7 +196,7 @@ typedef long long OFFSZ;
 /* Return a register class based on the type of the node */
 #define PCLASS(p)	(1 << gclass((p)->n_type))
 
-#define GCLASS(x)	(x < 16 ? CLASSA : x < 26 ? CLASSB : CLASSC)
+#define GCLASS(x)	(x < 32 ? CLASSA : CLASSB /* XXX - investigate */ )
 #define DECRA(x,y)      (((x) >> (y*6)) & 63)   /* decode encoded regs */
 #define ENCRD(x)        (x)             /* Encode dest reg in n_reg */
 #define ENCRA1(x)       ((x) << 6)      /* A1 */
