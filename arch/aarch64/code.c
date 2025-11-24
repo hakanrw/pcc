@@ -711,13 +711,13 @@ movearg_struct(NODE *p, int *regp)
 
 
 static NODE *
-moveargs(NODE *p, int *regp)
+moveargs(NODE *p, int *regp, int maxrarg)
 {
 	NODE *r, **rp;
 	int reg;
 
 	if (p->n_op == CM) {
-		p->n_left = moveargs(p->n_left, regp);
+		p->n_left = moveargs(p->n_left, regp, maxrarg);
 		r = p->n_right;
 		rp = &p->n_right;
 	} else {
@@ -727,7 +727,16 @@ moveargs(NODE *p, int *regp)
 
 	reg = *regp;
 
-	if (reg > R7 && r->n_op != STARG) {
+	if (maxrarg != -1 && reg >= maxrarg) {
+#if defined(MACHOABI)
+		/* varargs are pushed as 8-byte aligned */
+		r->n_type = ULONGLONG;
+		*rp = pusharg(r, regp);
+#else
+		/* this should never reach */
+		comperr("vararg handling called on non-Mach-O ABI");
+#endif
+	} else if (reg > R7 && r->n_op != STARG) {
 		*rp = pusharg(r, regp);
 	} else if (r->n_op == STARG) {
 		*rp = movearg_struct(r, regp);
@@ -805,15 +814,18 @@ builtin_cfa(const struct bitable *bt, NODE *a)
 NODE *
 funcode(NODE *p)
 {
-	int reg = R0;
+	int reg, maxrarg;
+	reg = R0;
+	maxrarg = -1;
 	fcstacksize = 0;
 
-	if (p->n_type == STRTY+FTN || p->n_type == UNIONTY+FTN) {
-		p = retstruct(p);
-		reg = R1;
-	}
+#ifdef LANG_CXX
+	/* XXX - i don't know what to do... */
+#elif defined(MACHOABI)
+	maxrarg = pr_ellidx(p->n_left->n_td->df->dlst);
+#endif
 
-	p->n_right = moveargs(p->n_right, &reg);
+	p->n_right = moveargs(p->n_right, &reg, maxrarg);
 
 	if (p->n_right == NULL)
 		p->n_op += (UCALL - CALL);
