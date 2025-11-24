@@ -659,7 +659,7 @@ zzzcode(NODE *p, int c)
 			    getlval(p) & 0xffffffff);
         		break;
 		case 'J':		/* init longlong constant */
-			load_64constant_into_reg(DECRA(p->n_reg, 1)-R16,
+			load_64constant_into_reg(DECRA(p->n_reg, 1),
 			    getlval(p) & 0xffffffffffffffff);
 			break;
 
@@ -844,7 +844,7 @@ adrput(FILE *io, NODE *p)
 					/* FALLTHROUGH */
 				case LONGLONG:
 				case ULONGLONG:
-					fprintf(io, "%s", rnames[p->n_rval-R16]);
+					fprintf(io, "%s", rnames[p->n_rval]);
 					break;
 				default:
 					fprintf(io, "%s", rnames[p->n_rval]);
@@ -1165,6 +1165,7 @@ COLORMAP(int c, int *r)
 int
 gclass(TWORD t)
 {
+	/* XXX - investigate further*/
 	if (t == DOUBLE || t == LDOUBLE) {
 		if (features(FEATURE_HARDFLOAT))
 			return CLASSC;
@@ -1177,8 +1178,6 @@ gclass(TWORD t)
 		else
 			return CLASSA;
 	}
-	if (DEUNSIGN(t) == LONGLONG || DEUNSIGN(t) == LONG || t == LONGLONG || t == LONG)
-		return CLASSB;
 	return CLASSA;
 }
 

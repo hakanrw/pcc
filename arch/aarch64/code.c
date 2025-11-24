@@ -122,65 +122,20 @@ putintemp(struct symtab *sym)
 static void
 param_64bit(struct symtab *sym, int *argofsp, int dotemps)
 {
-	int argofs = *argofsp;
-	NODE *p, *q;
-	int navail;
+        NODE *p, *q;
 
-#if ALLONGLONG == 64
-	/* alignment */
-	++argofs;
-	argofs &= ~1;
-	*argofsp = argofs;
-#endif
-
-	navail = NARGREGS - argofs;
-
-	if (navail < 2) {
-		/* half in and half out of the registers */
-		if (features(FEATURE_BIGENDIAN)) {
-			cerror("param_64bit");
-			p = q = NULL;
-		} else {
-			q = block(REG, NIL, NIL, INT, 0, 0);
-			regno(q) = R0 + argofs;
-			if (dotemps) {
-				q = block(SCONV, q, NIL,
-				    ULONGLONG, 0, 0);
-				p = nametree(sym);
-				p->n_type = ULONGLONG;
-				p->n_df = 0;
-				p->n_ap = NULL;
-				p = block(LS, p, bcon(32), ULONGLONG, 0, 0);
-				q = block(PLUS, p, q, ULONGLONG, 0, 0);
-				p = tempnode(0, ULONGLONG, 0, 0);
-				sym->soffset = regno(p);
-				sym->sflags |= STNODE;
-			} else {
-				p = nametree(sym);
-				regno(p) = sym->soffset;
-				p->n_type = INT;
-				p->n_df = 0;
-				p->n_ap = NULL;
-			}
-		}
-		p = buildtree(ASSIGN, p, q);
-		ecomp(p);
-		*argofsp = argofs + 2;
-		return;
-	}
-
-	q = block(REG, NIL, NIL, sym->stype, sym->sdf, sym->sap);
-	regno(q) = R16 + argofs;
-	if (dotemps) {
-		p = tempnode(0, sym->stype, sym->sdf, sym->sap);
-		sym->soffset = regno(p);
-		sym->sflags |= STNODE;
-	} else {
-		p = nametree(sym);
-	}
-	p = buildtree(ASSIGN, p, q);
-	ecomp(p);
-	*argofsp = argofs + 2;
+        q = block(REG, NIL, NIL, sym->stype, sym->sdf, sym->sap);
+        regno(q) = R0 + (*argofsp)++;
+        if (dotemps) {
+                p = tempnode(0, sym->stype, sym->sdf, sym->sap);
+                sym->soffset = regno(p);
+                sym->sflags |= STNODE;
+        } else {
+                printf("nametree\n");
+                p = nametree(sym);
+        }
+        p = buildtree(ASSIGN, p, q);
+        ecomp(p);
 }
 
 /* setup a 32-bit param on the stack
@@ -584,41 +539,13 @@ static NODE *
 movearg_64bit(NODE *p, int *regp)
 {
 	int reg = *regp;
-	NODE *q, *r;
+	NODE *q;
 
-#if ALLONGLONG == 64
-	/* alignment */
-	++reg;
-	reg &= ~1;
+	q = block(REG, NIL, NIL, p->n_type, p->n_df, p->n_ap);
+	regno(q) = reg++;
+	q = buildtree(ASSIGN, q, p);
+
 	*regp = reg;
-#endif
-
-	if (reg > R3) {
-		q = pusharg(p, regp);
-	} else if (reg == R3) {
-		/* half in and half out of the registers */
-		r = tcopy(p);
-		if (!features(FEATURE_BIGENDIAN)) {
-			q = block(SCONV, p, NIL, INT, 0, 0);
-			q = movearg_32bit(q, regp);     /* little-endian */
-			r = buildtree(RS, r, bcon(32));
-			r = block(SCONV, r, NIL, INT, 0, 0);
-			r = pusharg(r, regp); /* little-endian */
-		} else {
-			q = buildtree(RS, p, bcon(32));
-			q = block(SCONV, q, NIL, INT, 0, 0);
-			q = movearg_32bit(q, regp);     /* big-endian */
-			r = block(SCONV, r, NIL, INT, 0, 0);
-			r = pusharg(r, regp); /* big-endian */
-		}
-		q = straighten(block(CM, q, r, p->n_type, p->n_df, p->n_ap));
-	} else {
-		q = block(REG, NIL, NIL, p->n_type, p->n_df, p->n_ap);
-		regno(q) = R16 + (reg - R0);
-		q = buildtree(ASSIGN, q, p);
-		*regp = reg + 2;
-	}
-
 	return q;
 }
 
