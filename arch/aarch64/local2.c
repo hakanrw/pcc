@@ -954,7 +954,7 @@ prtaddr(NODE *p, void *arg)
 		p->n_op = ADDROF;
 	}
 
-	if (p->n_op != ADDROF || l->n_op != NAME)
+	if (p->n_op != ADDROF || l->n_op != NAME || kflag)
 		return;
 
 	/* if we passed 1k nodes printout list */
