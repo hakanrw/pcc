@@ -1094,7 +1094,7 @@ strcvt(NODE *p)
 	char *s;
 	int i;
 
-#ifdef mach_arm
+#if defined(mach_arm) || defined(mach_aarch64)
 	/* XXX */
 	if (p->n_op == UMUL && p->n_left->n_op == ADDROF)
 		p = p->n_left->n_left;
